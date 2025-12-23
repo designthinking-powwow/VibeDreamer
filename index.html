@@ -5,24 +5,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vibe Dreamer - 教學工具網頁</title>
-    <!-- 引入基礎樣式與字體 -->
+    
+    <!-- 引入 Tailwind CSS 樣式 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&family=Noto+Sans+TC:wght@400;900&display=swap" rel="stylesheet">
     
-    <!-- 穩定版 React 18 載入 -->
+    <!-- 引入 React 與 Babel (讓瀏覽器看得懂 JSX) -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel 用於在瀏覽器直接解析 JSX (最適合教學工具單一檔案使用) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
         body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
-        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
-        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
-        .floating { animation: float 3s ease-in-out infinite; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 10px; }
+        .bg-vibe { background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade { animation: fadeIn 0.5s ease-out forwards; }
     </style>
 <script type="importmap">
 {
@@ -37,23 +34,20 @@
 </head>
 <body>
     <div id="root">
-        <!-- 備用載入提示：如果 JS 沒跑起來，使用者會看到這個 -->
-        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #6366f1;">
-            <div style="text-align: center;">
-                <h2 style="font-weight: 900;">Vibe Dreamer 正在啟動...</h2>
-                <p style="color: #94a3b8;">如果長時間沒反應，請檢查您的網路連線或更換瀏覽器。</p>
+        <!-- 初始載入動畫 -->
+        <div class="flex items-center justify-center h-screen bg-slate-50">
+            <div class="text-center">
+                <div class="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                <h2 class="mt-4 font-black text-slate-800">正在啟動 Vibe Dreamer...</h2>
             </div>
         </div>
     </div>
 
-    <!-- 指定使用 babel 解析 JSX -->
+    <!-- 這是你的主程式，使用 type="text/babel" 確保瀏覽器即時解析 -->
     <script type="text/babel">
-        // 從全域變數中取得 React 功能 (這是最穩定的作法)
-        const { useState, useEffect, useCallback } = React;
-        
-        // 動態引入 Gemini SDK
-        import { GoogleGenAI } from "https://esm.sh/@google/genai@^1.34.0";
+        const { useState, useEffect } = React;
 
+        // --- 設定常數 ---
         const ROLES_MAP = {
             '全端工程師': { label: '萬能開發者', emoji: '🧙‍♂️' },
             'UI設計師': { label: '美感大師', emoji: '🎨' },
@@ -62,51 +56,90 @@
         };
 
         const COMMON_FEATURES = [
-            { id: 'auth', label: '帳號登入功能', emoji: '🔑' },
-            { id: 'responsive', label: '手機電腦通用', emoji: '📱' },
-            { id: 'darkmode', label: '黑夜模式', emoji: '🌙' },
-            { id: 'db', label: '資料自動儲存', emoji: '💾' }
+            { id: 'auth', label: '要有帳號登入功能', emoji: '🔑' },
+            { id: 'responsive', label: '手機電腦看起來都美', emoji: '📱' },
+            { id: 'darkmode', label: '提供黑夜模式切換', emoji: '🌙' },
+            { id: 'db', label: '能自動儲存資料', emoji: '💾' }
         ];
 
+        // --- 主元件 ---
         const App = () => {
             const [showSettings, setShowSettings] = useState(false);
             const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('vibe_dreamer_api_key') || '');
             const [progress, setProgress] = useState(0);
-            const [form, setForm] = useState({ roles: ['全端工程師'], task: '', platform: 'Web 網頁', style: '極簡', features: '', selectedCommonFeatures: [], language: '繁體中文' });
+            const [form, setForm] = useState({
+                roles: ['全端工程師'],
+                task: '',
+                style: '極簡',
+                features: '',
+                selectedCommonFeatures: []
+            });
             const [generatedPrompt, setGeneratedPrompt] = useState('');
             const [copySuccess, setCopySuccess] = useState(false);
 
+            // 更新進度條
             useEffect(() => {
                 let p = 0;
                 if (form.task) p += 50;
                 if (form.roles.length > 0) p += 25;
-                if (form.features || form.selectedCommonFeatures.length > 0) p += 25;
+                if (form.selectedCommonFeatures.length > 0 || form.features) p += 25;
                 setProgress(p);
             }, [form]);
 
+            // 即時生成提示詞
             useEffect(() => {
                 const roleString = form.roles.map(r => ROLES_MAP[r]?.label || r).join(' 與 ');
-                const features = [...form.selectedCommonFeatures.map(id => COMMON_FEATURES.find(f => f.id === id)?.label), form.features].filter(Boolean).join('、');
-                const prompt = `你現在是我的專屬 ${roleString}。我的點子是「${form.task || '我的專案'}」。\n開發平台：${form.platform}\n設計風格：${form.style}\n功能需求：${features || '基本邏輯'}\n請用單一 index.html 檔案實作，使用 Tailwind CSS，並用${form.language}回覆。`;
+                const features = [
+                    ...form.selectedCommonFeatures.map(id => COMMON_FEATURES.find(f => f.id === id)?.label),
+                    form.features
+                ].filter(Boolean).join('、');
+
+                const prompt = `你現在是我的專屬 ${roleString}。
+我想要開發一個點子叫做「${form.task || '我的專案'}」。
+【設計風格】整體的視覺氣質是：${form.style}。
+【核心功能】請務必實現：${features || '基本的交互與邏輯'}。
+【要求】請將所有代碼寫在單一 index.html 檔案中，使用 Tailwind CSS，並用繁體中文回覆我。`;
                 setGeneratedPrompt(prompt);
             }, [form]);
 
+            const handleCopy = async () => {
+                await navigator.clipboard.writeText(generatedPrompt);
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            };
+
             return (
-                <div className="min-h-screen pb-20 bg-slate-50">
+                <div className="min-h-screen pb-20 bg-slate-50 animate-fade">
+                    {/* 進度條 */}
                     <div className="fixed top-0 left-0 w-full h-2 bg-slate-200 z-[100]">
-                        <div className="h-full bg-indigo-600 transition-all duration-700" style={{ width: `${progress}%` }}></div>
+                        <div 
+                            className="h-full bg-indigo-600 transition-all duration-700 shadow-lg shadow-indigo-200" 
+                            style={{ width: `${progress}%` }}
+                        ></div>
                     </div>
 
+                    {/* 設定按鈕 */}
                     <button onClick={() => setShowSettings(true)} className="fixed top-6 right-6 z-[90] p-4 bg-white rounded-2xl shadow-xl border border-slate-100 hover:scale-105 transition-all">⚙️</button>
 
+                    {/* API Key 彈窗 (解析功能需用到) */}
                     {showSettings && (
                         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowSettings(false)}></div>
-                            <div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8">
-                                <h3 className="text-xl font-black mb-4">API Key 設定</h3>
-                                <input type="password" value={customApiKey} onChange={(e) => setCustomApiKey(e.target.value)} placeholder="在此貼上金鑰..." className="w-full rounded-xl bg-slate-50 p-4 mb-4 border-2 border-transparent focus:border-indigo-400 outline-none" />
-                                <button onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')} className="w-full py-3 rounded-xl border-2 border-indigo-100 text-indigo-600 font-bold mb-4">🚀 申請免費 API Key</button>
-                                <button onClick={() => { localStorage.setItem('vibe_dreamer_api_key', customApiKey); setShowSettings(false); }} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black shadow-lg">確認並儲存</button>
+                            <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8">
+                                <h3 className="text-xl font-black mb-4">設定您的 API 金鑰</h3>
+                                <input 
+                                    type="password" 
+                                    value={customApiKey} 
+                                    onChange={(e) => setCustomApiKey(e.target.value)} 
+                                    placeholder="在此貼上您的 Gemini Key..." 
+                                    className="w-full rounded-xl bg-slate-50 p-4 border-2 border-transparent focus:border-indigo-400 outline-none mb-6 font-mono text-sm"
+                                />
+                                <button 
+                                    onClick={() => { localStorage.setItem('vibe_dreamer_api_key', customApiKey); setShowSettings(false); }}
+                                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200"
+                                >
+                                    完成並儲存
+                                </button>
                             </div>
                         </div>
                     )}
@@ -114,58 +147,98 @@
                     <div className="max-w-4xl mx-auto pt-20 px-6">
                         <header className="text-center mb-16">
                             <h1 className="text-5xl font-black text-slate-900 mb-2">Vibe <span className="text-indigo-600">Dreamer</span></h1>
-                            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Vibe Coding 靈感工具 (單檔部署版)</p>
+                            <p className="text-slate-500 font-medium">填好表單，讓 AI 幫你寫出第一個作品。</p>
                         </header>
 
                         <div className="space-y-10">
+                            {/* 步驟 1 */}
                             <section className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
                                 <h2 className="text-2xl font-black text-slate-800 mb-8 flex items-center">
-                                    <span className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center mr-4 shadow-lg text-sm">1</span>
+                                    <span className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center mr-4 text-sm font-black shadow-lg">1</span>
                                     定義靈魂
                                 </h2>
-                                <div className="space-y-6">
+                                <div className="space-y-8">
                                     <div>
-                                        <label className="text-xs font-black text-slate-400 mb-2 block uppercase">專案名稱</label>
-                                        <input type="text" value={form.task} onChange={(e) => setForm({...form, task: e.target.value})} placeholder="例如：貓咪餵食機器人網頁" className="w-full rounded-xl bg-slate-50 py-4 px-6 border-2 border-transparent focus:border-indigo-400 outline-none font-bold" />
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block">點子名稱</label>
+                                        <input 
+                                            type="text" 
+                                            value={form.task} 
+                                            onChange={(e) => setForm({...form, task: e.target.value})} 
+                                            placeholder="例如：精美的番茄鐘計時器" 
+                                            className="w-full rounded-2xl bg-slate-50 py-5 px-7 border-2 border-transparent focus:bg-white focus:border-indigo-400 outline-none transition-all font-bold text-lg" 
+                                        />
                                     </div>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                        {Object.entries(ROLES_MAP).map(([key, data]) => (
-                                            <button key={key} onClick={() => setForm({...form, roles: [key]})} className={`p-4 rounded-2xl border-2 transition-all ${form.roles.includes(key) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-100 text-slate-400'}`}>
-                                                <div className="text-2xl">{data.emoji}</div>
-                                                <div className="text-[10px] font-black mt-1">{data.label}</div>
-                                            </button>
-                                        ))}
+                                    <div>
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block">想要指派哪種專家？</label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            {Object.entries(ROLES_MAP).map(([key, data]) => (
+                                                <button 
+                                                    key={key} 
+                                                    onClick={() => setForm({...form, roles: [key]})} 
+                                                    className={`p-4 rounded-2xl border-2 transition-all ${form.roles.includes(key) ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg scale-105' : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200'}`}
+                                                >
+                                                    <div className="text-2xl">{data.emoji}</div>
+                                                    <div className="text-[10px] font-black mt-1 uppercase">{data.label}</div>
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </section>
 
+                            {/* 步驟 2 */}
                             <section className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
                                 <h2 className="text-2xl font-black text-slate-800 mb-8 flex items-center">
-                                    <span className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center mr-4 shadow-lg text-sm">2</span>
-                                    功能願望
+                                    <span className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center mr-4 text-sm font-black shadow-lg">2</span>
+                                    核心功能
                                 </h2>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
                                     {COMMON_FEATURES.map(f => (
-                                        <label key={f.id} className={`flex items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${form.selectedCommonFeatures.includes(f.id) ? 'bg-indigo-50 border-indigo-200' : 'border-slate-50'}`}>
-                                            <input type="checkbox" checked={form.selectedCommonFeatures.includes(f.id)} onChange={() => setForm(prev => ({...prev, selectedCommonFeatures: prev.selectedCommonFeatures.includes(f.id) ? prev.selectedCommonFeatures.filter(id => id !== f.id) : [...prev.selectedCommonFeatures, f.id]}))} className="h-5 w-5 text-indigo-600" />
-                                            <span className="ml-3 text-sm font-bold text-slate-600">{f.emoji} {f.label}</span>
+                                        <label key={f.id} className={`flex items-center p-5 rounded-2xl border-2 cursor-pointer transition-all ${form.selectedCommonFeatures.includes(f.id) ? 'bg-indigo-50 border-indigo-200' : 'border-slate-50 hover:bg-slate-100'}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={form.selectedCommonFeatures.includes(f.id)} 
+                                                onChange={() => setForm(prev => ({
+                                                    ...prev, 
+                                                    selectedCommonFeatures: prev.selectedCommonFeatures.includes(f.id) ? prev.selectedCommonFeatures.filter(id => id !== f.id) : [...prev.selectedCommonFeatures, f.id]
+                                                }))} 
+                                                className="h-5 w-5 text-indigo-600" 
+                                            />
+                                            <span className="ml-4 text-sm font-bold text-slate-600">{f.emoji} {f.label}</span>
                                         </label>
                                     ))}
                                 </div>
-                                <textarea rows={4} value={form.features} onChange={(e) => setForm({...form, features: e.target.value})} placeholder="還有其他想加入的功能嗎？" className="w-full rounded-2xl bg-slate-50 p-6 border-2 border-transparent focus:border-indigo-400 outline-none text-sm" />
+                                <textarea 
+                                    rows={4} 
+                                    value={form.features} 
+                                    onChange={(e) => setForm({...form, features: e.target.value})} 
+                                    placeholder="還有什麼特別願望？描述一下細節吧..." 
+                                    className="w-full rounded-2xl bg-slate-50 border-2 border-transparent py-5 px-7 outline-none focus:bg-white focus:border-indigo-400 transition-all text-sm shadow-inner" 
+                                />
                             </section>
 
-                            <section className="bg-slate-900 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-pink-500"></div>
-                                <div className="text-indigo-400 font-black text-[10px] tracking-widest uppercase mb-4">Prompt Preview</div>
-                                <div className="bg-white/5 rounded-2xl p-6 border border-white/5 min-h-[150px] font-mono text-indigo-100/70 text-xs leading-relaxed whitespace-pre-wrap mb-8">
+                            {/* 指令預覽區 */}
+                            <section className="bg-[#111] rounded-[3rem] p-10 shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1.5 bg-vibe"></div>
+                                <div className="text-indigo-400 font-black text-[10px] tracking-[0.3em] uppercase mb-6 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                    AI Magic Prompt
+                                </div>
+                                <div className="bg-white/5 rounded-2xl p-6 border border-white/5 min-h-[150px] font-mono text-indigo-100/70 text-xs leading-relaxed whitespace-pre-wrap mb-10 selection:bg-indigo-500">
                                     {generatedPrompt}
                                 </div>
-                                <button onClick={async () => { await navigator.clipboard.writeText(generatedPrompt); setCopySuccess(true); setTimeout(()=>setCopySuccess(false), 2000); }} className={`w-full py-5 rounded-2xl font-black text-lg transition-all ${copySuccess ? 'bg-emerald-500' : 'bg-indigo-600'} text-white shadow-xl`}>
-                                    {copySuccess ? "✅ 已複製指令" : "複製指令去問 AI"}
+                                <button 
+                                    onClick={handleCopy} 
+                                    className={`w-full py-6 rounded-3xl font-black text-xl transition-all shadow-xl active:scale-95 ${copySuccess ? 'bg-emerald-500' : 'bg-indigo-600'} text-white`}
+                                >
+                                    {copySuccess ? "✨ 指令複製成功！" : "複製指令並去問 AI"}
                                 </button>
                             </section>
                         </div>
+
+                        <footer className="mt-20 text-center text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] pb-10">
+                            Vibe Dreamer v6.2 — Single File for GitHub
+                        </footer>
                     </div>
                 </div>
             );
