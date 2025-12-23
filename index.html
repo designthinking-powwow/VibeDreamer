@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vibe Dreamer - 你的 Vibe Coding 靈感發射器</title>
+    <title>Vibe Dreamer - 教學工具網頁</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&family=Noto+Sans+TC:wght@400;900&display=swap" rel="stylesheet">
     <style>
@@ -29,6 +29,7 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>
@@ -38,7 +39,7 @@
         import ReactDOM from 'react-dom/client';
         import { GoogleGenAI } from "@google/genai";
 
-        // --- Types & Constants ---
+        // --- 設定常數 ---
         const ROLES_MAP = {
             '全端工程師': { label: '萬能開發者', emoji: '🧙‍♂️' },
             'UI設計師': { label: '美感視覺大師', emoji: '🎨' },
@@ -50,30 +51,20 @@
 
         const STYLES = ['極簡', '深色', '可愛風', '賽博龐克', '商務專業', '復古風'];
         const PLATFORMS = ['Web 網頁', 'Mobile App', 'Android', 'iOS', 'Desktop 桌面程式'];
-        const RANDOM_IDEAS = ["一個專為貓咪設計的 21 天運動計劃表", "精緻的復古黑膠唱片線上播放器", "充滿未來感的個人番茄鐘計時器", "霓虹風格的即時加密貨幣看板"];
         const COMMON_FEATURES = [
-            { id: 'auth', label: '要有專屬帳號登入', emoji: '🔑' },
-            { id: 'responsive', label: '手機電腦看起來都很完美', emoji: '📱' },
-            { id: 'darkmode', label: '提供帥氣的黑夜模式', emoji: '🌙' },
-            { id: 'db', label: '能自動記住輸入的內容', emoji: '💾' }
+            { id: 'auth', label: '帳號登入功能', emoji: '🔑' },
+            { id: 'responsive', label: '響應式設計 (手機可用)', emoji: '📱' },
+            { id: 'darkmode', label: '黑夜模式', emoji: '🌙' },
+            { id: 'db', label: '資料庫儲存', emoji: '💾' }
         ];
 
-        // --- Components ---
+        // --- 輔助組件 ---
         const Tooltip = ({ text }) => {
             const [show, setShow] = useState(false);
             return (
-                <div className="relative inline-block ml-1">
-                    <div 
-                        onMouseEnter={() => setShow(true)}
-                        onMouseLeave={() => setShow(false)}
-                        className="cursor-help inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] font-bold hover:bg-indigo-200 hover:text-indigo-600 transition-colors"
-                    >?</div>
-                    {show && (
-                        <div className="absolute z-50 w-48 px-3 py-2 mt-2 text-xs font-medium text-white bg-slate-800 rounded-xl shadow-xl -left-20 sm:left-0">
-                            {text}
-                            <div className="absolute top-0 left-1/2 -mt-1 h-2 w-2 -translate-x-1/2 rotate-45 bg-slate-800"></div>
-                        </div>
-                    )}
+                <div className="relative inline-block ml-2">
+                    <div onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)} className="cursor-help inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-slate-500 text-[10px] font-bold">?</div>
+                    {show && <div className="absolute z-50 w-48 px-3 py-2 mt-2 text-xs font-medium text-white bg-slate-800 rounded-xl shadow-xl">{text}</div>}
                 </div>
             );
         };
@@ -82,22 +73,14 @@
             const [showSettings, setShowSettings] = useState(false);
             const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('vibe_dreamer_api_key') || '');
             const [progress, setProgress] = useState(0);
-            const [form, setForm] = useState({
-                roles: ['全端工程師'],
-                task: '',
-                platform: 'Web 網頁',
-                style: '極簡',
-                features: '',
-                selectedCommonFeatures: [],
-                language: '繁體中文'
-            });
-
+            const [form, setForm] = useState({ roles: ['全端工程師'], task: '', platform: 'Web 網頁', style: '極簡', features: '', selectedCommonFeatures: [], language: '繁體中文' });
             const [analyzeUrl, setAnalyzeUrl] = useState('');
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [analysisError, setAnalysisError] = useState(null);
             const [generatedPrompt, setGeneratedPrompt] = useState('');
             const [copySuccess, setCopySuccess] = useState(false);
 
+            // 進度條邏輯
             useEffect(() => {
                 let p = 0;
                 if (form.task) p += 30;
@@ -107,108 +90,84 @@
                 setProgress(p);
             }, [form]);
 
+            // 提示詞生成邏輯
             useEffect(() => {
                 const roleString = form.roles.map(r => ROLES_MAP[r]?.label || r).join(' 與 ');
-                const combinedFeatures = [
-                    ...form.selectedCommonFeatures.map(id => COMMON_FEATURES.find(f => f.id === id)?.label),
-                    form.features
-                ].filter(Boolean).join('、');
-
-                const prompt = `你現在是我的專屬 ${roleString}。
-我想要開發一個超酷的點子叫做「${form.task || '我的夢想專案'}」。
-【開發目標】這是一個在 ${form.platform} 上運行的產品。
-【設計風格】視覺氣質：${form.style}。
-【核心功能】務必實現：${combinedFeatures || '基礎交互邏輯'}。
-【要求】1. 單一 index.html 檔案輸出。 2. 使用 ${form.language} 並含註釋。 3. 使用 Tailwind CSS。`;
-                setGeneratedPrompt(prompt);
+                const features = [...form.selectedCommonFeatures.map(id => COMMON_FEATURES.find(f => f.id === id)?.label), form.features].filter(Boolean).join('、');
+                setGeneratedPrompt(`你現在是我的專屬 ${roleString}。我的點子是「${form.task || '創意專案'}」。\n開發平台：${form.platform}\n設計風格：${form.style}\n功能需求：${features || '基本功能'}\n請用單一 index.html 檔案實作，使用 Tailwind CSS，並用${form.language}回覆。`);
             }, [form]);
 
-            const handleCopy = async () => {
-                await navigator.clipboard.writeText(generatedPrompt);
-                setCopySuccess(true);
-                setTimeout(() => setCopySuccess(false), 3000);
-            };
-
-            const toggleRole = (role) => {
-                setForm(prev => ({
-                    ...prev,
-                    roles: prev.roles.includes(role) 
-                        ? (prev.roles.length > 1 ? prev.roles.filter(r => r !== role) : prev.roles)
-                        : [...prev.roles, role]
-                }));
-            };
-
             const handleAIAnalysis = async () => {
-                const apiKey = customApiKey || ""; 
-                if (!apiKey) { setShowSettings(true); return; }
+                if (!customApiKey) { setShowSettings(true); return; }
                 setIsAnalyzing(true); setAnalysisError(null);
                 try {
-                    const ai = new GoogleGenAI({ apiKey });
+                    const ai = new GoogleGenAI({ apiKey: customApiKey });
                     const response = await ai.models.generateContent({
                         model: 'gemini-3-flash-preview',
-                        contents: `分析此網頁並轉化為開發參數：${analyzeUrl}。回傳 JSON: {task, style, features}`,
+                        contents: `請分析此網頁並轉化為開發建議 JSON：${analyzeUrl}`,
+                        config: { tools: [{ googleSearch: {} }] }
                     });
-                    const result = JSON.parse(response.text.match(/\{[\s\S]*\}/)[0]);
-                    setForm(prev => ({ ...prev, task: result.task, style: '自定義', features: result.features }));
-                } catch (e) { setAnalysisError("分析失敗，請檢查 API Key 或網址。"); }
+                    const json = JSON.parse(response.text.match(/\{[\s\S]*\}/)[0]);
+                    setForm(prev => ({ ...prev, task: json.task || '', style: '極簡', features: json.features || '' }));
+                } catch (e) { setAnalysisError("分析失敗，請檢查金鑰或網址。"); }
                 finally { setIsAnalyzing(false); }
             };
 
             return (
-                <div className="min-h-screen bg-slate-50 py-16 px-4">
-                    <div className="fixed top-0 left-0 w-full h-1.5 bg-slate-200 z-[100]">
-                        <div className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 transition-all duration-700 shadow-[0_0_15px_rgba(99,102,241,0.6)]" style={{ width: `${progress}%` }}></div>
+                <div className="min-h-screen pb-20">
+                    <div className="fixed top-0 left-0 w-full h-2 bg-slate-200 z-[100]">
+                        <div className="h-full bg-indigo-600 transition-all duration-700" style={{ width: `${progress}%` }}></div>
                     </div>
 
-                    <div className="fixed top-6 right-6 z-[90]">
-                        <button onClick={() => setShowSettings(true)} className="p-3 bg-white/80 backdrop-blur-md border border-slate-200 rounded-2xl shadow-sm hover:border-indigo-300 transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </button>
-                    </div>
+                    {/* 設定按鈕 */}
+                    <button onClick={() => setShowSettings(true)} className="fixed top-6 right-6 z-[90] p-4 bg-white rounded-full shadow-lg border border-slate-100">⚙️</button>
 
+                    {/* 設定 Modal */}
                     {showSettings && (
                         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowSettings(false)}></div>
-                            <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8">
-                                <h3 className="text-2xl font-black mb-2 text-indigo-600">魔法金鑰設定</h3>
-                                <input type="password" value={customApiKey} onChange={(e) => setCustomApiKey(e.target.value)} placeholder="在此貼上你的 API Key..." className="w-full rounded-2xl bg-slate-50 border-2 border-transparent py-4 px-6 outline-none focus:border-indigo-400 mb-6 font-mono text-sm" />
-                                <button onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')} className="w-full py-4 rounded-2xl border-2 border-indigo-100 text-indigo-600 font-black text-sm mb-4 hover:bg-indigo-50 transition-all">🚀 點我申請免費 API Key</button>
+                            <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-10">
+                                <h3 className="text-2xl font-black mb-6 text-indigo-600">API Key 設定</h3>
+                                <input type="password" value={customApiKey} onChange={(e) => setCustomApiKey(e.target.value)} placeholder="在此貼上金鑰..." className="w-full rounded-2xl bg-slate-50 p-5 mb-4 outline-none border-2 border-transparent focus:border-indigo-400 font-mono" />
+                                <button onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')} className="w-full py-4 rounded-2xl border-2 border-indigo-100 text-indigo-600 font-bold mb-6 hover:bg-indigo-50 transition-all">🚀 點我申請免費 API Key</button>
                                 <button onClick={() => { localStorage.setItem('vibe_dreamer_api_key', customApiKey); setShowSettings(false); }} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg">確認並儲存</button>
                             </div>
                         </div>
                     )}
 
-                    <div className="max-w-4xl mx-auto">
+                    <div className="max-w-4xl mx-auto pt-20 px-6">
                         <header className="text-center mb-16">
-                            <h1 className="text-5xl font-black text-slate-900">Vibe <span className="text-indigo-600">Dreamer</span></h1>
-                            <p className="mt-4 text-slate-500 font-medium">把你的感覺 (Vibe)，變成真實的程式碼。</p>
+                            <h1 className="text-5xl font-black text-slate-900 mb-4">Vibe <span className="text-indigo-600">Dreamer</span></h1>
+                            <p className="text-slate-500 font-medium text-lg">讓 AI 幫你寫程式，從一個感覺開始。</p>
                         </header>
 
-                        <div className="bg-white rounded-[3rem] p-10 shadow-2xl mb-12 border border-indigo-50/50 relative overflow-hidden">
-                            <h3 className="text-xl font-bold text-slate-800 mb-6 text-center">讓 AI 幫你解析網頁靈魂</h3>
-                            <div className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto">
-                                <input type="text" placeholder="貼上網址..." className="flex-1 px-6 py-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-300 outline-none" value={analyzeUrl} onChange={(e) => setAnalyzeUrl(e.target.value)} />
-                                <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 disabled:opacity-50">{isAnalyzing ? "魔法解析中..." : "啟動魔法"}</button>
+                        {/* AI 網頁解析區 */}
+                        <div className="bg-white rounded-[3rem] p-10 shadow-2xl mb-12 border border-indigo-50">
+                            <h3 className="text-xl font-black text-slate-800 mb-6 text-center">🪄 AI 魔法解析：貼上你喜歡的網頁</h3>
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <input type="text" placeholder="https://..." className="flex-1 px-6 py-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-indigo-300 outline-none" value={analyzeUrl} onChange={(e) => setAnalyzeUrl(e.target.value)} />
+                                <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 disabled:opacity-50">{isAnalyzing ? "正在解析..." : "啟動魔法"}</button>
                             </div>
-                            {analysisError && <p className="text-center mt-4 text-indigo-400 text-xs font-bold">{analysisError}</p>}
+                            {analysisError && <p className="text-center mt-4 text-pink-500 text-sm font-bold">{analysisError}</p>}
                         </div>
 
-                        <div className="space-y-12">
+                        {/* 主表單 */}
+                        <div className="space-y-10">
                             <section className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-100">
-                                <h2 className="text-2xl font-black text-slate-800 mb-10 flex items-center">
-                                    <span className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mr-4 shadow-lg">1</span>
-                                    第一章：點子的靈魂 <Tooltip text="在這裡描述你的核心點子"/>
+                                <h2 className="text-2xl font-black text-slate-800 mb-8 flex items-center">
+                                    <span className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center mr-4 shadow-lg text-sm">1</span>
+                                    定義靈魂
                                 </h2>
-                                <div className="space-y-10">
+                                <div className="space-y-8">
                                     <div>
-                                        <label className="text-sm font-black text-slate-600 uppercase mb-4 block">給點子取個名字</label>
-                                        <input type="text" value={form.task} onChange={(e) => setForm({...form, task: e.target.value})} placeholder="例如：充滿禪意的打坐計時器" className="w-full rounded-2xl bg-slate-50 py-5 px-7 focus:bg-white border-2 border-transparent focus:border-indigo-400 outline-none font-bold text-lg transition-all" />
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block">點子的名字</label>
+                                        <input type="text" value={form.task} onChange={(e) => setForm({...form, task: e.target.value})} placeholder="例如：極簡禪意時鐘" className="w-full rounded-2xl bg-slate-50 py-5 px-7 border-2 border-transparent focus:border-indigo-400 outline-none font-bold text-lg" />
                                     </div>
                                     <div>
-                                        <label className="text-sm font-black text-slate-600 uppercase mb-4 block">誰來幫你實現？</label>
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block">實現的角色</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {Object.entries(ROLES_MAP).map(([key, data]) => (
-                                                <button key={key} onClick={() => toggleRole(key)} className={`p-4 rounded-3xl border-2 transition-all text-left flex flex-col gap-2 ${form.roles.includes(key) ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl scale-105' : 'bg-white border-slate-100 text-slate-400'}`}>
+                                                <button key={key} onClick={() => setForm({...form, roles: [key]})} className={`p-4 rounded-3xl border-2 transition-all text-left flex flex-col gap-2 ${form.roles.includes(key) ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200'}`}>
                                                     <span className="text-2xl">{data.emoji}</span>
                                                     <span className="text-xs font-black">{data.label}</span>
                                                 </button>
@@ -218,35 +177,15 @@
                                 </div>
                             </section>
 
-                            <section className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-100">
-                                <h2 className="text-2xl font-black text-slate-800 mb-10 flex items-center">
-                                    <span className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mr-4 shadow-lg">2</span>
-                                    第二章：具體功能
-                                </h2>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                                    {COMMON_FEATURES.map(f => (
-                                        <label key={f.id} className={`flex items-center p-6 rounded-3xl border-2 cursor-pointer transition-all ${form.selectedCommonFeatures.includes(f.id) ? 'bg-indigo-50 border-indigo-200' : 'border-slate-50'}`}>
-                                            <input type="checkbox" checked={form.selectedCommonFeatures.includes(f.id)} onChange={() => setForm(prev => ({ ...prev, selectedCommonFeatures: prev.selectedCommonFeatures.includes(f.id) ? prev.selectedCommonFeatures.filter(id => id !== f.id) : [...prev.selectedCommonFeatures, f.id]}))} className="h-6 w-6 text-indigo-600" />
-                                            <span className="ml-4 text-sm font-bold text-slate-700">{f.emoji} {f.label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                                <textarea rows={4} value={form.features} onChange={(e) => setForm({...form, features: e.target.value})} placeholder="還有什麼特別願望？" className="w-full rounded-[2rem] bg-slate-50 py-6 px-8 outline-none focus:border-indigo-400 border-2 border-transparent transition-all" />
-                            </section>
-
-                            <section className="bg-[#111] rounded-[3.5rem] shadow-2xl overflow-hidden p-12">
-                                <div className="bg-white/5 rounded-[2.5rem] p-8 border border-white/5 min-h-[200px] font-mono text-indigo-100/80 text-xs leading-relaxed whitespace-pre-wrap mb-10">
+                            <section className="bg-[#111] rounded-[3.5rem] shadow-2xl p-10">
+                                <div className="bg-white/5 rounded-3xl p-6 border border-white/10 min-h-[200px] font-mono text-indigo-200/80 text-xs leading-relaxed whitespace-pre-wrap mb-8">
                                     {generatedPrompt}
                                 </div>
-                                <button onClick={handleCopy} className={`w-full py-6 rounded-3xl font-black text-lg transition-all ${copySuccess ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40'}`}>
-                                    {copySuccess ? "✨ 複製成功！" : "拿走這份魔法指令"}
+                                <button onClick={async () => { await navigator.clipboard.writeText(generatedPrompt); setCopySuccess(true); setTimeout(()=>setCopySuccess(false),2000); }} className={`w-full py-6 rounded-3xl font-black text-xl transition-all ${copySuccess ? 'bg-emerald-500' : 'bg-indigo-600'} text-white shadow-xl shadow-indigo-900/20`}>
+                                    {copySuccess ? "✅ 複製成功" : "複製 AI 指令"}
                                 </button>
                             </section>
                         </div>
-
-                        <footer className="mt-32 text-center text-slate-300 text-[10px] font-black uppercase tracking-[0.5em]">
-                            Vibe Dreamer v6.0 — Portable & Fast
-                        </footer>
                     </div>
                 </div>
             );
@@ -255,5 +194,6 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
     </script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>
